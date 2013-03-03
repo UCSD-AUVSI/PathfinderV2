@@ -1,5 +1,5 @@
-PATH_WIDTH_METERS = 61
-OVERSHOOT_DISTANCE_METERS = 61
+PATH_WIDTH = 61
+OVERSHOOT_DISTANCE = 61
 
 def get_largest_x(points):
     return max([point[0] for point in points])
@@ -13,45 +13,33 @@ def get_smallest_x(points):
 def get_smallest_y(points):
     return min([point[1] for point in points])
 
-def point_inside_polygon(point, polygon):
-    from shapely.geometry import Polygon, Point
-    _polygon = Polygon([point1 for point1, point2 in polygon])
-    _point = Point(point) 
-    return _point.within(_polygon) or _polygon.boundary.contains(_point)
-
 def get_left_top(boundaries):
     return get_smallest_x(boundaries), get_smallest_y(boundaries)
 
-def to_radians(degrees):
-    return degrees * PI / 180
-
-def calculate_line_segments(boundaries, 
-                            path_width_meters = PATH_WIDTH_METERS,
-                            overshoot_distance_meters = OVERSHOOT_DISTANCE_METERS):
+def calculate_line_segments(boundaries, path_width = PATH_WIDTH,
+                            overshoot_distance = OVERSHOOT_DISTANCE):
+    import numpy
 
     def pad(line_segment):
         top, bottom = line_segment
         if top[1] > bottom[1]:
             top, bottom = bottom, top 
 
-        top = (top[0],  top[1] - OVERSHOOT_DISTANCE_METERS)
-        bottom = (bottom[0], bottom[1] + OVERSHOOT_DISTANCE_METERS)
+        top = (top[0],  top[1] - overshoot_distance)
+        bottom = (bottom[0], bottom[1] + overshoot_distance)
         
         return (top, bottom)
 
-    dx = path_width_meters
+    dx = path_width
     start_x,y = get_left_top(boundaries)
     stop_x = get_largest_x(boundaries)
-    line_segments_list = [calculate_line_segments_thru(x,
-                        boundaries,
-                        overshoot_distance_meters) for x in
-                        range(start_x,stop_x,dx)]
+    line_segments_list = [calculate_line_segments_thru(x, boundaries, overshoot_distance) for x in
+                        numpy.arange(start_x,stop_x,dx)]
 
     # Flatten
-    return [pad(line_segment) for line_segments in line_segments_list for
-        line_segment in line_segments]
+    return [pad(line_segment) for line_segments in line_segments_list for line_segment in line_segments]
 
-def calculate_line_segments_thru(x, boundaries, overshoot_distance_meters):
+def calculate_line_segments_thru(x, boundaries, overshoot_distance):
     def sort_by_y(point):
         return point[1]
 
@@ -124,10 +112,10 @@ def rotate_boundaries(boundaries, wind_angle_degrees):
 def rotate_path(path, rotation_angle):
     return path
         
-def main(plane_location, boundaries, wind_angle_degrees):
+def main(plane_location, boundaries, wind_angle_degrees, path_width =
+        PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE ):
     boundaries, rotation_angle = rotate_boundaries(boundaries, wind_angle_degrees)
-    perimeters = calculate_perimeters(boundaries)
-    line_segments = calculate_line_segments(boundaries)
+    line_segments = calculate_line_segments(boundaries, path_width, overshoot_distance)
     path = calculate_path(plane_location, line_segments)
     path = rotate_path(path, -rotation_angle)
     return path
@@ -210,6 +198,15 @@ def test():
         wind_angle_degrees = 90
         path = main(plane_location, boundaries, wind_angle_degrees)
         create_image(boundaries, path, "square.jpg")
+
+    def test_square_scaled():
+        plane_location = 0.1, 0.1
+        boundaries = [(0, 0), (0.1, 0), (0.1, 0.1), (0, 0.1)]
+        wind_angle_degrees = 90
+        path = main(plane_location, boundaries, wind_angle_degrees, 0.006, 0.006)
+        print path
+        create_image(boundaries, path, "square_scaled.jpg")
+
     def test_rot_square():
         plane_location = 1, 1
         boundaries = [(500, 0), (0,500), (-500, 0), (0, -500)]
@@ -217,8 +214,18 @@ def test():
         path = main(plane_location, boundaries, wind_angle_degrees)
         create_image(boundaries, path, "rot_square.jpg")
 
+    def test_concave():
+        plane_location = 1, 1
+        boundaries = [(0, 0), (1000, 0), (500,500), (1000, 1000), (0, 1000)]
+        wind_angle_degrees = 90
+        path = main(plane_location, boundaries, wind_angle_degrees)
+        create_image(boundaries, path, "concave.jpg")
+
+
     test_square()
+    test_square_scaled()
     test_rot_square()
+    test_concave()
 
 if __name__ == '__main__':
     test()
