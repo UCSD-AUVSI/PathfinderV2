@@ -1,5 +1,6 @@
 PATH_WIDTH = 61
 OVERSHOOT_DISTANCE = 61
+MAX_DISTANCE_BETWEEN_WAYPOINTS = 50
 
 def rotate(points,cnt,angle_radians):
     import scipy
@@ -123,16 +124,18 @@ def calculate_center(polygon):
     sum_y = sum(point[1] for point in polygon)
     return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
 
-def rotate_path(path, rotation_angle):
+def add_intermediate_waypoints(path, distance_between_waypoints):
     return path
-        
+
 def main(plane_location, boundaries, wind_angle_degrees, path_width =
-        PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE ):
+        PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE,
+        max_distance_between_waypoints = MAX_DISTANCE_BETWEEN_WAYPOINTS):
     wind_angle_radians = wind_angle_degrees / 180.0 * 3.14159
     boundaires_center = calculate_center(boundaries)
     boundaries = rotate(boundaries, boundaires_center, wind_angle_radians)
     line_segments = calculate_line_segments(boundaries, path_width, overshoot_distance)
     path = calculate_path(plane_location, line_segments)
+    path = add_intermediate_waypoints(path, max_distance_between_waypoints)
     path = rotate(path, boundaires_center, -wind_angle_radians)
     return path
 
@@ -213,8 +216,9 @@ def create_image(boundaries, path, filename, size = None):
         draw.line(segment, '#F00')
 
     if len(path) > 1:
-        for segment in calculate_perimeters(path)[:-1]:
+        for index,segment in enumerate(calculate_perimeters(path)[:-1]):
             draw.line(segment, '#0F0')
+            draw.text(segment[0], str(index+1), '#FFF')
 
     image.save(filename, 'jpeg')
 
@@ -257,6 +261,7 @@ def test():
         wind_angle_degrees = 90
         path = main(plane_location, boundaries, wind_angle_degrees, 0.0001, 0.0001)
         create_image(boundaries, path, "gps.jpg")
+        return path
 
 
     test_square()
@@ -267,3 +272,28 @@ def test():
 
 if __name__ == '__main__':
     test()
+
+    def meters_to_gps(meters):
+        return meters / 111122.0
+
+    plane_location = 32.961043, -117.190664
+    boundaries = [(32.961043,-117.190664),
+                  (32.961132,-117.188443),
+                  (32.962393,-117.187006),
+                  (32.962321,-117.189924)]
+
+    wind_angle_degrees = 0
+    path_width = meters_to_gps(30)
+    overshoot_distance = meters_to_gps(30)
+
+    path = main(plane_location, boundaries, 
+                wind_angle_degrees, path_width, overshoot_distance)
+
+    print "QGC WPL 110"
+    print "0\t1\t0\t16\t0\t0\t0\t0\t" + str(plane_location[0]) + "\t" + str(plane_location[1]) + "\t300.000000"+"\t1"
+    for index,(x,y) in enumerate(path):
+        xstr = "%.6f" % x
+        ystr = "%.6f" % y
+        print str(index+1) +"\t0\t3\t16\t0.000000\t0.000000\t0.000000\t0.000000\t"+ xstr+ "\t" + ystr + "\t300.000000\t1" 
+        
+    create_image(boundaries, path, "output.jpg")
