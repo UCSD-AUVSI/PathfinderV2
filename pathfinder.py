@@ -1,6 +1,18 @@
 PATH_WIDTH = 61
 OVERSHOOT_DISTANCE = 61
 
+def rotate(points,cnt,angle_radians):
+    import scipy
+    dot = scipy.dot
+    ar = scipy.array
+    cos = scipy.cos
+    sin = scipy.sin
+    pts = ar(points)
+    '''pts = {} Rotates points(nx2) about center cnt(2) by angle ang(1) in radian'''
+    rotated = dot(pts-cnt,ar([[cos(angle_radians),sin(angle_radians)],[-sin(angle_radians),cos(angle_radians)]]))+cnt
+    return list(rotated)
+
+
 def get_largest_x(points):
     return max([point[0] for point in points])
 
@@ -106,18 +118,22 @@ def calculate_path(plane_location, perimeters):
 
     return path
 
-def rotate_boundaries(boundaries, wind_angle_degrees):
-    return boundaries, 0
+def calculate_center(polygon):
+    sum_x = sum(point[0] for point in polygon)
+    sum_y = sum(point[1] for point in polygon)
+    return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
 
 def rotate_path(path, rotation_angle):
     return path
         
 def main(plane_location, boundaries, wind_angle_degrees, path_width =
         PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE ):
-    boundaries, rotation_angle = rotate_boundaries(boundaries, wind_angle_degrees)
+    wind_angle_radians = wind_angle_degrees / 180.0 * 3.14159
+    boundaires_center = calculate_center(boundaries)
+    boundaries = rotate(boundaries, boundaires_center, wind_angle_radians)
     line_segments = calculate_line_segments(boundaries, path_width, overshoot_distance)
     path = calculate_path(plane_location, line_segments)
-    path = rotate_path(path, -rotation_angle)
+    path = rotate(path, boundaires_center, -wind_angle_radians)
     return path
 
 def compute_ratio(points):
@@ -160,7 +176,7 @@ def create_image(boundaries, path, filename, size = None):
         if not boundaries and not path:
             return [], []
 
-        if boundaries and not path:
+        if len(boundaries) and not len(path):
             smallest_x = get_smallest_x(boundaries)
             smallest_y = get_smallest_y(boundaries)
             largest_x = get_largest_x(boundaries)
@@ -196,7 +212,7 @@ def create_image(boundaries, path, filename, size = None):
     for segment in calculate_perimeters(boundaries):
         draw.line(segment, '#F00')
 
-    if path:
+    if len(path) > 1:
         for segment in calculate_perimeters(path)[:-1]:
             draw.line(segment, '#0F0')
 
@@ -206,9 +222,10 @@ def test():
     def test_square():
         plane_location = 1, 1
         boundaries = [(0, 0), (1000, 0), (1000, 1000), (0, 1000)]
-        wind_angle_degrees = 90
+        wind_angle_degrees = 45
         path = main(plane_location, boundaries, wind_angle_degrees)
         create_image(boundaries, path, "square.jpg")
+        return path
 
     def test_square_scaled():
         plane_location = 0.1, 0.1
@@ -239,7 +256,6 @@ def test():
         (32.962321,-117.189924)]
         wind_angle_degrees = 90
         path = main(plane_location, boundaries, wind_angle_degrees, 0.0001, 0.0001)
-        print path
         create_image(boundaries, path, "gps.jpg")
 
 
