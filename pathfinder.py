@@ -157,10 +157,20 @@ def create_image(boundaries, path, filename, size = None):
 
             return [normalize_point(point) for point in points]
 
-        smallest_x = min(get_smallest_x(path), get_smallest_x(boundaries))
-        smallest_y = min(get_smallest_y(path), get_smallest_y(boundaries))
-        largest_x = max(get_largest_x(path), get_largest_x(boundaries))
-        largest_y = max(get_largest_y(path), get_largest_y(boundaries))
+        if not boundaries and not path:
+            return [], []
+
+        if boundaries and not path:
+            smallest_x = get_smallest_x(boundaries)
+            smallest_y = get_smallest_y(boundaries)
+            largest_x = get_largest_x(boundaries)
+            largest_y = get_largest_y(boundaries)
+        else:
+            smallest_x = min(get_smallest_x(path), get_smallest_x(boundaries))
+            smallest_y = min(get_smallest_y(path), get_smallest_y(boundaries))
+            largest_x = max(get_largest_x(path), get_largest_x(boundaries))
+            largest_y = max(get_largest_y(path), get_largest_y(boundaries))
+
         dx = largest_x - smallest_x
         dy = largest_y - smallest_y
 
@@ -186,8 +196,9 @@ def create_image(boundaries, path, filename, size = None):
     for segment in calculate_perimeters(boundaries):
         draw.line(segment, '#F00')
 
-    for segment in calculate_perimeters(path)[:-1]:
-        draw.line(segment, '#0F0')
+    if path:
+        for segment in calculate_perimeters(path)[:-1]:
+            draw.line(segment, '#0F0')
 
     image.save(filename, 'jpeg')
 
@@ -204,7 +215,6 @@ def test():
         boundaries = [(0, 0), (0.1, 0), (0.1, 0.1), (0, 0.1)]
         wind_angle_degrees = 90
         path = main(plane_location, boundaries, wind_angle_degrees, 0.006, 0.006)
-        print path
         create_image(boundaries, path, "square_scaled.jpg")
 
     def test_rot_square():
@@ -221,11 +231,23 @@ def test():
         path = main(plane_location, boundaries, wind_angle_degrees)
         create_image(boundaries, path, "concave.jpg")
 
+    def test_gps_coords():
+        plane_location = 32.961043, -117.190664
+        boundaries = [(32.961043,-117.190664),
+        (32.961132,-117.188443),
+        (32.962393,-117.187006),
+        (32.962321,-117.189924)]
+        wind_angle_degrees = 90
+        path = main(plane_location, boundaries, wind_angle_degrees, 0.0001, 0.0001)
+        print path
+        create_image(boundaries, path, "gps.jpg")
+
 
     test_square()
     test_square_scaled()
     test_rot_square()
     test_concave()
+    test_gps_coords()
 
 if __name__ == '__main__':
     test()
