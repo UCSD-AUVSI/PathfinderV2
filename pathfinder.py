@@ -125,7 +125,25 @@ def calculate_center(polygon):
     return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
 
 def add_intermediate_waypoints(path, distance_between_waypoints):
-    return path
+    from numpy import arange
+    def add_intermediates(start,stop):
+        if start[0] != stop[0]:
+            return [start, stop]
+        else:
+            if start[1] > stop[1]:
+                distance = -distance_between_waypoints
+            else:
+                distance = distance_between_waypoints
+            return [(start[0], y) for y in arange(start[1], stop[1],
+                distance)] + [stop]
+
+    path_lines = calculate_perimeters(path)[:-1]
+    new_path = []
+    for start, stop in path_lines:
+        new_path += add_intermediates(start, stop)
+
+    return new_path
+
 
 def main(plane_location, boundaries, wind_angle_degrees, path_width =
         PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE,
@@ -285,9 +303,10 @@ if __name__ == '__main__':
     wind_angle_degrees = 0
     path_width = meters_to_gps(30)
     overshoot_distance = meters_to_gps(30)
+    dist_between = meters_to_gps(30)
 
     path = main(plane_location, boundaries, 
-                wind_angle_degrees, path_width, overshoot_distance)
+                wind_angle_degrees, path_width, overshoot_distance, dist_between)
 
     print "QGC WPL 110"
     print "0\t1\t0\t16\t0\t0\t0\t0\t" + str(plane_location[0]) + "\t" + str(plane_location[1]) + "\t300.000000"+"\t1"
