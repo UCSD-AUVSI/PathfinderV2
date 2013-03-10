@@ -1,15 +1,14 @@
 PATH_WIDTH = 61
 OVERSHOOT_DISTANCE = 61
 MAX_DISTANCE_BETWEEN_WAYPOINTS = 50
+FONT_SIZE = 42
 
 def rotate(points,cnt,angle_radians):
     import scipy
-    dot = scipy.dot
     ar = scipy.array
-    cos = scipy.cos
-    sin = scipy.sin
+    from scipy import dot, cos, sin
+
     pts = ar(points)
-    '''pts = {} Rotates points(nx2) about center cnt(2) by angle ang(1) in radian'''
     rotated = dot(pts-cnt,ar([[cos(angle_radians),sin(angle_radians)],[-sin(angle_radians),cos(angle_radians)]]))+cnt
     return list(rotated)
 
@@ -29,8 +28,7 @@ def get_smallest_y(points):
 def get_left_top(boundaries):
     return get_smallest_x(boundaries), get_smallest_y(boundaries)
 
-def calculate_line_segments(boundaries, path_width = PATH_WIDTH,
-                            overshoot_distance = OVERSHOOT_DISTANCE):
+def calculate_line_segments(boundaries, path_width = PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE):
     import numpy
 
     def pad(line_segment):
@@ -79,9 +77,12 @@ def calculate_intersections(line, boundaries):
     s_line = LineString(line)
     s_boundaries = LineString(boundaries + [boundaries[0]])
     intersection = s_line.intersection(s_boundaries)
+
     if isinstance(intersection, Point) or isinstance(intersection, LineString):
         return list(intersection.coords)
+
     intersect_points = [list(geometry.coords) for geometry in intersection]
+
     return [point for points in intersect_points for point in points]
 
 
@@ -138,12 +139,8 @@ def add_intermediate_waypoints(path, distance_between_waypoints):
                 distance)] + [stop]
 
     path_lines = calculate_perimeters(path)[:-1]
-    new_path = []
-    for start, stop in path_lines:
-        new_path += add_intermediates(start, stop)
-
-    return new_path
-
+    new_path = [add_intermediates(start, stop) for start, stop in path_lines]
+    return [point for points in new_path for point in points]
 
 def main(plane_location, boundaries, wind_angle_degrees, path_width =
         PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE,
@@ -170,7 +167,7 @@ def compute_ratio(points):
     return float(dy) / dx
 
 def create_image(boundaries, path, filename, size = None):
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont
     BORDER_PX = 50
 
     def pad_dimensions(x, y, padding):
@@ -221,7 +218,7 @@ def create_image(boundaries, path, filename, size = None):
 
     padded_image_x, padded_image_y = pad_dimensions(image_x, image_y, BORDER_PX)
 
-    image = Image.new("RGB", (padded_image_x, padded_image_y))
+    image = Image.new("RGB", (padded_image_x, padded_image_y), '#FFFFFF')
     draw = ImageDraw.Draw(image)
 
     path, boundaries = normalize(path, boundaries, image_x, image_y)
@@ -230,13 +227,14 @@ def create_image(boundaries, path, filename, size = None):
     boundaries = pad_points(boundaries, BORDER_PX)
 
 
-    for segment in calculate_perimeters(boundaries):
-        draw.line(segment, '#F00')
+    # for segment in calculate_perimeters(boundaries):
+    draw.polygon(boundaries, '#999999')
+    font = ImageFont.truetype('arial.ttf', FONT_SIZE)
 
     if len(path) > 1:
         for index,segment in enumerate(calculate_perimeters(path)[:-1]):
-            draw.line(segment, '#0F0')
-            draw.text(segment[0], str(index+1), '#FFF')
+            draw.line(segment, '#000000')
+            draw.text(segment[0], str(index+1), fill='#FF0000', font=font)
 
     image.save(filename, 'jpeg')
 
@@ -288,6 +286,24 @@ def test():
     test_concave()
     test_gps_coords()
 
+def export_qgc_waypoints(home_location, path):
+    def print_header():
+        print "QGC WPL 110"
+    def print_home_location():
+        print "0\t1\t0\t16\t0\t0\t0\t0\t" + str(home_location[0]) + "\t"\
+                                          + str(home_location[1]) + "\t300.000000\t1"
+    def print_path():
+        for index,(x,y) in enumerate(path):
+            xstr = "%.6f" % x
+            ystr = "%.6f" % y
+            print str(index+1)\
+                +"\t0\t3\t16\t0.000000\t0.000000\t0.000000\t0.000000\t"+\
+                xstr+ "\t" + ystr + "\t300.000000\t1" 
+    
+    print_header()
+    print_home_location()
+    print_path()
+
 if __name__ == '__main__':
     test()
 
@@ -300,19 +316,14 @@ if __name__ == '__main__':
                   (32.962393,-117.187006),
                   (32.962321,-117.189924)]
 
-    wind_angle_degrees = 0
+    wind_angle_degrees = 30
     path_width = meters_to_gps(30)
     overshoot_distance = meters_to_gps(30)
     dist_between = meters_to_gps(30)
 
-    path = main(plane_location, boundaries, 
+    path = main(plane_location, boundaries,
                 wind_angle_degrees, path_width, overshoot_distance, dist_between)
 
-    print "QGC WPL 110"
-    print "0\t1\t0\t16\t0\t0\t0\t0\t" + str(plane_location[0]) + "\t" + str(plane_location[1]) + "\t300.000000"+"\t1"
-    for index,(x,y) in enumerate(path):
-        xstr = "%.6f" % x
-        ystr = "%.6f" % y
-        print str(index+1) +"\t0\t3\t16\t0.000000\t0.000000\t0.000000\t0.000000\t"+ xstr+ "\t" + ystr + "\t300.000000\t1" 
+    export_qgc_waypoints(plane_location, path)
         
     create_image(boundaries, path, "output.jpg")
