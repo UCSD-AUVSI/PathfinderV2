@@ -3,8 +3,24 @@ OVERSHOOT_DISTANCE = 61
 MAX_DISTANCE_BETWEEN_WAYPOINTS = 50
 FONT_SIZE = 42
 
-class Pathfinder:
-    def __rotate(self, points, cnt, angle_radians):
+
+class GeometryOperations:
+
+    @staticmethod
+    def compute_ratio(points):
+        smallest_x = GeometryOperations.get_smallest_x(points)
+        smallest_y = GeometryOperations.get_smallest_y(points)
+
+        largest_x = GeometryOperations.get_largest_x(points)
+        largest_y = GeometryOperations.get_largest_y(points)
+
+        dx = largest_x - smallest_x
+        dy = largest_y - smallest_y
+
+        return float(dy) / dx
+
+    @staticmethod
+    def rotate(points, cnt, angle_radians):
         import scipy
         ar = scipy.array
         from scipy import dot, cos, sin
@@ -13,54 +29,38 @@ class Pathfinder:
         rotated = dot(pts-cnt,ar([[cos(angle_radians),sin(angle_radians)],[-sin(angle_radians),cos(angle_radians)]]))+cnt
         return list(rotated)
 
-    def __get_largest_x(self, points):
+    @staticmethod
+    def get_largest_x(points):
         return max([point[0] for point in points])
 
-    def __get_largest_y(self, points):
+    @staticmethod
+    def get_largest_y(points):
         return max([point[1] for point in points])
 
-    def __get_smallest_x(self, points):
+    @staticmethod
+    def get_smallest_x(points):
         return min([point[0] for point in points])
 
-    def __get_smallest_y(self, points):
+    @staticmethod
+    def get_smallest_y(points):
         return min([point[1] for point in points])
 
-    def __get_left_top(self, boundaries):
-        return self.__get_smallest_x(boundaries), self.__get_smallest_y(boundaries)
+    @staticmethod
+    def get_left_top(boundaries):
+        return GeometryOperations.get_smallest_x(boundaries), GeometryOperations.get_smallest_y(boundaries)
 
-    def __calculate_line_segments(self, boundaries):
-        import numpy
-
-        def pad(line_segment):
-            top, bottom = line_segment
-            if top[1] > bottom[1]:
-                top, bottom = bottom, top 
-
-            top = (top[0],  top[1] - self.overshoot_distance)
-            bottom = (bottom[0], bottom[1] + self.overshoot_distance)
-            
-            return top, bottom
-
-        dx = self.path_width
-        start_x,y = self.__get_left_top(boundaries)
-        stop_x = self.__get_largest_x(boundaries)
-        line_segments_list = [self.__calculate_line_segments_thru(x, boundaries) for x in
-                            numpy.arange(start_x,stop_x,dx)]
-
-        # Flatten
-        return [pad(line_segment) for line_segments in line_segments_list for line_segment in line_segments]
-
-    def __calculate_line_segments_thru(self, x, boundaries):
+    @staticmethod
+    def calculate_line_segments_thru(x, boundaries):
         def sort_by_y(point):
             return point[1]
 
         def calculate_path_line_to_split(x):
-            min_y = self.__get_smallest_y(boundaries)
-            max_y = self.__get_largest_y(boundaries)
+            min_y = GeometryOperations.get_smallest_y(boundaries)
+            max_y = GeometryOperations.get_largest_y(boundaries)
             return (x, min_y), (x, max_y)
         
         line = calculate_path_line_to_split(x)
-        intersections = self.__calculate_intersections(line, boundaries)
+        intersections = GeometryOperations.calculate_intersections(line, boundaries)
 
         if not intersections:
             return []
@@ -68,10 +68,11 @@ class Pathfinder:
             if len(intersections) == 1:
                intersections += intersections
             ordered_intersections = sorted(intersections, key = sort_by_y) 
-            segments = self.__calculate_perimeters(ordered_intersections)[:-1] 
+            segments = GeometryOperations.calculate_perimeters(ordered_intersections)[:-1] 
             return segments[::2]
 
-    def __calculate_intersections(self, line, boundaries):
+    @staticmethod
+    def calculate_intersections(line, boundaries):
         from shapely.geometry import LineString, Point
 
         s_line = LineString(line)
@@ -86,31 +87,80 @@ class Pathfinder:
         return [point for points in intersect_points for point in points]
 
 
-    def __dist(self, point1, point2):
+    @staticmethod
+    def dist(point1, point2):
         from math import sqrt
         return sqrt( (point2[1] - point1[1]) ** 2 + (point2[0] - point1[0]) ** 2 )
 
-    def __calculate_perimeters(self, boundaries):
+    @staticmethod
+    def calculate_perimeters(boundaries):
         if len(boundaries) < 2:
             return 0
         else:
             return zip(boundaries,boundaries[1:] + [boundaries[-1]]) + [(boundaries[-1],
                 boundaries[0])]
 
+    @staticmethod
+    def calculate_center(polygon):
+        sum_x = sum(point[0] for point in polygon)
+        sum_y = sum(point[1] for point in polygon)
+        return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
 
-    def __calculate_path(self, plane_location, perimeters):
-        def find_closest_perimeter(point, perimeters):
+    @staticmethod
+    def find_closest_perimeter(point, perimeters):
             distance, perimeter = min([ 
-                    (min( self.__dist(point, perimeter[0]), self.__dist(point, perimeter[1]) ), perimeter )
+                    (min( GeometryOperations.dist(point, perimeter[0]),
+                        GeometryOperations.dist(point, perimeter[1]) ), perimeter )
                     for perimeter in perimeters] )
             return perimeter
+
+    @staticmethod
+    def pad_vertical(line_segment, padding):
+        top, bottom = line_segment
+        if top[1] > bottom[1]:
+            top, bottom = bottom, top 
+
+        top = (top[0],  top[1] - padding)
+        bottom = (bottom[0], bottom[1] + padding)
+
+        return top, bottom
+
+    @staticmethod
+    def add_intermediates(line_segment, distance):
+        import numpy
+        start, stop = line_segment
+        if start[0] != stop[0]:
+            return [start, stop]
+        else:
+            if start[1] > stop[1]:
+                distance = -distance
+            return [(start[0], y) for y in numpy.arange(start[1], stop[1],
+                distance)] + [stop]
+
+    @staticmethod
+    def calculate_line_segments(boundaries, dx, overshoot_distance):
+        import numpy
+
+        def pad(line_segment):
+            return GeometryOperations.pad_vertical(line_segment, overshoot_distance)
+
+        start_x,y = GeometryOperations.get_left_top(boundaries)
+        stop_x = GeometryOperations.get_largest_x(boundaries)
+        line_segments_list = [GeometryOperations.calculate_line_segments_thru(x, boundaries) for x in numpy.arange(start_x,stop_x,dx)]
+
+        # Flatten
+        return [pad(line_segment) for line_segments in line_segments_list for line_segment in line_segments]
+
+class Pathfinder:
+
+    def __calculate_path(self, plane_location, perimeters):
 
         path = [plane_location]
         _perimeters = list(perimeters)
 
         while _perimeters:
-            perimeter = find_closest_perimeter(plane_location, _perimeters)
-            if self.__dist(plane_location, perimeter[0]) < self.__dist(plane_location, perimeter[1]):
+            perimeter = GeometryOperations.find_closest_perimeter(plane_location, _perimeters)
+            if GeometryOperations.dist(plane_location, perimeter[0]) < GeometryOperations.dist(plane_location, perimeter[1]):
                 first_point, second_point = perimeter
             else:
                 second_point, first_point = perimeter
@@ -120,26 +170,13 @@ class Pathfinder:
 
         return path
 
-    def __calculate_center(self, polygon):
-        sum_x = sum(point[0] for point in polygon)
-        sum_y = sum(point[1] for point in polygon)
-        return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
 
     def __add_intermediate_waypoints(self, path):
-        from numpy import arange
-        def add_intermediates(start,stop):
-            if start[0] != stop[0]:
-                return [start, stop]
-            else:
-                if start[1] > stop[1]:
-                    distance = -self.max_distance_between_waypoints
-                else:
-                    distance = self.max_distance_between_waypoints
-                return [(start[0], y) for y in arange(start[1], stop[1],
-                    distance)] + [stop]
+        def add_intermediates(line):
+            return GeometryOperations.add_intermediates(line, self.max_distance_between_waypoints)
 
-        path_lines = self.__calculate_perimeters(path)[:-1]
-        new_path = [add_intermediates(start, stop) for start, stop in path_lines]
+        path_lines = GeometryOperations.calculate_perimeters(path)[:-1]
+        new_path = [add_intermediates(line) for line in path_lines]
         return [point for points in new_path for point in points]
 
     def __init__(self, plane_location, boundaries, wind_angle_degrees, path_width =
@@ -151,24 +188,14 @@ class Pathfinder:
         self.overshoot_distance = overshoot_distance
         self.max_distance_between_waypoints = max_distance_between_waypoints
         self.wind_angle_radians = wind_angle_degrees / 180.0 * 3.14159
-        self.boundaries_center = self.__calculate_center(boundaries)
-        self.boundaries = self.__rotate(boundaries, self.boundaries_center, self.wind_angle_radians)
-        self.line_segments = self.__calculate_line_segments(self.boundaries)
+        self.boundaries_center = GeometryOperations.calculate_center(boundaries)
+        self.boundaries = GeometryOperations.rotate(boundaries, self.boundaries_center, self.wind_angle_radians)
+        self.line_segments = GeometryOperations.calculate_line_segments(self.boundaries,
+                self.path_width, self.overshoot_distance)
         self.path = self.__calculate_path(plane_location, self.line_segments)
         self.path = self.__add_intermediate_waypoints(self.path)
-        self.path = self.__rotate(self.path, self.boundaries_center, -self.wind_angle_radians)
+        self.path = GeometryOperations.rotate(self.path, self.boundaries_center, -self.wind_angle_radians)
 
-    def __compute_ratio(self, points):
-        smallest_x = min([point[0] for point in points])
-        smallest_y = min([point[1] for point in points])
-
-        largest_x = max([point[0] for point in points])
-        largest_y = max([point[1] for point in points])
-
-        dx = largest_x - smallest_x
-        dy = largest_y - smallest_y
-
-        return float(dy) / dx
 
     def create_image(self, filename, size = None):
         from PIL import Image, ImageDraw, ImageFont
@@ -187,6 +214,11 @@ class Pathfinder:
 
         def normalize(path, boundaries, max_x, max_y):
 
+            get_smallest_x = GeometryOperations.get_smallest_x
+            get_smallest_y = GeometryOperations.get_smallest_y
+            get_largest_x = GeometryOperations.get_largest_x
+            get_largest_y = GeometryOperations.get_largest_y
+
             def normalize_points(points):
                 def normalize_point(point):
                     x = float(point[0] - smallest_x)
@@ -199,15 +231,15 @@ class Pathfinder:
                 return [], []
 
             if len(boundaries) and not len(path):
-                smallest_x = self.__get_smallest_x(boundaries)
-                smallest_y = self.__get_smallest_y(boundaries)
-                largest_x = self.__get_largest_x(boundaries)
-                largest_y = self.__get_largest_y(boundaries)
+                smallest_x = get_smallest_x(boundaries)
+                smallest_y = get_smallest_y(boundaries)
+                largest_x = get_largest_x(boundaries)
+                largest_y = get_largest_y(boundaries)
             else:
-                smallest_x = min(self.__get_smallest_x(path), self.__get_smallest_x(boundaries))
-                smallest_y = min(self.__get_smallest_y(path), self.__get_smallest_y(boundaries))
-                largest_x = max(self.__get_largest_x(path), self.__get_largest_x(boundaries))
-                largest_y = max(self.__get_largest_y(path), self.__get_largest_y(boundaries))
+                smallest_x = min(get_smallest_x(path), get_smallest_x(boundaries))
+                smallest_y = min(get_smallest_y(path), get_smallest_y(boundaries))
+                largest_x = max(get_largest_x(path), get_largest_x(boundaries))
+                largest_y = max(get_largest_y(path), get_largest_y(boundaries))
 
             dx = largest_x - smallest_x
             dy = largest_y - smallest_y
@@ -216,7 +248,7 @@ class Pathfinder:
 
         if not size: 
             image_x = 1024
-            image_y = int(1024 * self.__compute_ratio(self.boundaries))
+            image_y = int(1024 * GeometryOperations.compute_ratio(self.boundaries))
         else:
             image_x, image_y = size
 
@@ -236,7 +268,7 @@ class Pathfinder:
         font = ImageFont.truetype('arial.ttf', FONT_SIZE)
 
         if len(path) > 1:
-            for index,segment in enumerate(self.__calculate_perimeters(path)[:-1]):
+            for index,segment in enumerate(GeometryOperations.calculate_perimeters(path)[:-1]):
                 draw.line(segment, '#000000')
                 draw.text(segment[0], str(index+1), fill='#FF0000', font=font)
 
