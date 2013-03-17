@@ -7,6 +7,10 @@ FONT_SIZE = 42
 class GeometryOperations:
 
     @staticmethod
+    def to_radians(degrees):
+        return degrees * 3.14159 / 180
+
+    @staticmethod
     def compute_ratio(points):
         smallest_x = GeometryOperations.get_smallest_x(points)
         smallest_y = GeometryOperations.get_smallest_y(points)
@@ -183,20 +187,29 @@ class Pathfinder:
             PATH_WIDTH, overshoot_distance = OVERSHOOT_DISTANCE,
             max_distance_between_waypoints = MAX_DISTANCE_BETWEEN_WAYPOINTS):
 
-        self.plane_location = plane_location
+        def rotate_boundaries(boundaries, boundaries_center, wind_angle_radians):
+            return GeometryOperations.rotate(boundaries, boundaries_center, wind_angle_radians)
+
+        def compute_path(boundaries, plane_location):
+            line_segments = GeometryOperations.calculate_line_segments(boundaries,
+                    self.path_width, self.overshoot_distance)
+            path = self.__calculate_path(plane_location, line_segments)
+            return self.__add_intermediate_waypoints(path)
+
+        def unrotate_path(path, boundaries_center, wind_angle_radians):
+            return GeometryOperations.rotate(path, boundaries_center, -wind_angle_radians)
+
         self.path_width = path_width
         self.overshoot_distance = overshoot_distance
         self.max_distance_between_waypoints = max_distance_between_waypoints
-        self.wind_angle_radians = wind_angle_degrees / 180.0 * 3.14159
-        self.boundaries_center = GeometryOperations.calculate_center(boundaries)
-        self.boundaries = GeometryOperations.rotate(boundaries, self.boundaries_center, self.wind_angle_radians)
-        self.line_segments = GeometryOperations.calculate_line_segments(self.boundaries,
-                self.path_width, self.overshoot_distance)
-        self.path = self.__calculate_path(plane_location, self.line_segments)
-        self.path = self.__add_intermediate_waypoints(self.path)
-        self.path = GeometryOperations.rotate(self.path, self.boundaries_center, -self.wind_angle_radians)
-        self.boundaries = GeometryOperations.rotate(self.boundaries,
-                self.boundaries_center, -self.wind_angle_radians)
+        self.boundaries = boundaries
+        self.plane_location = plane_location
+
+        wind_angle_radians = wind_angle_degrees / 180.0 * 3.14159
+        boundaries_center = GeometryOperations.calculate_center(boundaries)
+        rotated_boundaries = rotate_boundaries(boundaries, boundaries_center,  wind_angle_radians)
+        rotated_path = compute_path(rotated_boundaries, plane_location)
+        self.path = unrotate_path(rotated_path, boundaries_center, wind_angle_radians)
 
 
     def create_image(self, filename, size = None):
