@@ -10,6 +10,15 @@ class Pathfinder:
     FONT_SIZE = 42
 
     @staticmethod
+    def __remove_sequential_duplicates(path):
+        new_path = [path[0]]
+        for point in path[1:]:
+            if new_path[-1] != point:
+                new_path.append(point)
+
+        return new_path
+
+    @staticmethod
     def __calculate_path_rotated(start_point, perimeters):
 
         path = [start_point]
@@ -50,7 +59,8 @@ class Pathfinder:
             line_segments = geometry_operations.calculate_line_segments(boundaries,
                     self.path_width, self.overshoot_distance)
             path = Pathfinder.__calculate_path_rotated(plane_location, line_segments)
-            return self.__add_intermediate_waypoints(path)
+            path = self.__add_intermediate_waypoints(path)
+            return self.__remove_sequential_duplicates(path)
 
         def unrotate_path(path, boundaries_center, wind_angle_radians):
             return geometry_operations.rotate(path, boundaries_center, -wind_angle_radians)
@@ -60,7 +70,7 @@ class Pathfinder:
         rotated_boundaries = geometry_operations.rotate(self.boundaries, boundaries_center,
                                                         wind_angle_radians)
         rotated_path = compute_path_rotated(rotated_boundaries, self.plane_location)
-        self.__path = unrotate_path(rotated_path, boundaries_center, wind_angle_radians)
+        return unrotate_path(rotated_path, boundaries_center, wind_angle_radians)
 
     def __init__(self, plane_location, boundaries, options = dict()):
 

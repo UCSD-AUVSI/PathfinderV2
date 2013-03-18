@@ -2,7 +2,7 @@ import geometry_operations
 
 class ImageGenerator:
     BORDER_PX = 50
-    FONT_SIZE = 14
+    FONT_SIZE = 54
     def __init__(self, pathfinder):
         self.pathfinder = pathfinder
 
@@ -72,7 +72,7 @@ class ImageGenerator:
             image_x, image_y = get_base_size()
             return ImageGenerator.__pad_dimensions(image_x, image_y)
 
-        path, boundaries = ImageGenerator.__normalize_and_pad(self.pathfinder.path,
+        path, boundaries = ImageGenerator.__normalize_and_pad(self.pathfinder.get_path(),
                 self.pathfinder.boundaries, get_base_size())
         image = ImageGenerator.__render_image_normalized(path, boundaries, get_padded_size())
         image.save(filename, 'jpeg')

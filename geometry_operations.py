@@ -109,14 +109,17 @@ def pad_vertical(line_segment, padding):
 
 def add_intermediates(line_segment, distance):
     import numpy
+    (start_x, start_y), (stop_x, stop_y) = line_segment
     start, stop = line_segment
-    if start[0] != stop[0]:
+    if start_x != stop_x:
+        # Don't add intermediate waypoints in this case
         return [start, stop]
     else:
-        if start[1] > stop[1]:
+        if start_y > stop_y:
             distance = -distance
-        return [(start[0], y) for y in numpy.arange(start[1], stop[1],
+        result = [(start_x, y) for y in numpy.arange(start_y, stop_y,
             distance)] + [stop]
+        return result
 
 def calculate_line_segments(boundaries, dx, overshoot_distance):
     import numpy
