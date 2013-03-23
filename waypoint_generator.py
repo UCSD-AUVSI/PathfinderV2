@@ -1,4 +1,8 @@
 class WaypointGenerator:
+    """
+        Outputs the path waypoints to a format that QGroundControl can
+        understand. This outputs to STDOUT.
+    """
     def __init__(self, pathfinder):
         self.pathfinder = pathfinder
 

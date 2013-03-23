@@ -1,6 +1,11 @@
 import geometry_operations
+from geometry_operations import get_bounding_box
+from PIL import Image, ImageDraw, ImageFont
 
 class ImageGenerator:
+    """
+        Generates an image of a path and search area
+    """
     BORDER_PX = 50
     FONT_SIZE = 54
     def __init__(self, pathfinder):
@@ -8,10 +13,18 @@ class ImageGenerator:
 
     @staticmethod
     def __pad_dimensions(x, y):
+        """
+            Returns a new copy of the given dimensions with 2X the border added
+            to the horizontal and vertical components
+        """
         return x + 2*ImageGenerator.BORDER_PX, y + 2*ImageGenerator.BORDER_PX
 
     @staticmethod
     def __pad_points(points, padding):
+        """
+            Returns a new set of points with *padding* added to the x
+            and y component of each point
+        """
         def pad_point(point, padding):
             x, y = point
             return (x + padding, y + padding)
@@ -20,22 +33,28 @@ class ImageGenerator:
 
     @staticmethod
     def __render_image_normalized(path, boundaries, size):
-        from PIL import Image, ImageDraw, ImageFont
+        """
+            Creates an image using path and boundaries that are already index
+            the pixel coordinate system
+        """
         image = Image.new("RGB", size, '#FFFFFF')
         draw = ImageDraw.Draw(image)
 
         draw.polygon(boundaries, '#999999')
         font = ImageFont.truetype('arial.ttf', ImageGenerator.FONT_SIZE)
 
-        if len(path) > 1:
-            for index, segment in enumerate(geometry_operations.calculate_perimeters(path)[:-1]):
-                draw.line(segment, '#000000')
-                draw.text(segment[0], str(index+1), fill='#FF0000', font=font)
+        for index, segment in enumerate(geometry_operations.to_line_segments(path)[:-1]):
+            draw.line(segment, '#000000')
+            draw.text(segment[0], str(index+1), fill='#FF0000', font=font)
 
         return image
 
     @staticmethod
     def __normalize_and_pad(path, boundaries, size):
+        """
+            Takes the path and boundaries, and converts them into pixel
+            coordinates. Also adds the padding for the border
+        """
         (smallest_x, smallest_y), (largest_x, largest_y) = \
         geometry_operations.get_bounding_box(boundaries + path)
 
@@ -64,8 +83,8 @@ class ImageGenerator:
                 return size
             else: 
                 image_x = 1024
-                image_y = int(1024 * geometry_operations.compute_ratio(\
-                    self.pathfinder.boundaries))
+                image_y = int(1024 * geometry_operations.compute_ratio(
+                    get_bounding_box(self.pathfinder.boundaries)))
                 return image_x, image_y
 
         def get_padded_size():
