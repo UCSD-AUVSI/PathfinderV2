@@ -8,6 +8,8 @@ def get_bounding_box(points):
         Returns two points that represent the opposite corners of
         the min box that contains the given points
     """
+
+    assert len(points) > 0
     min_x = get_min_x(points)
     min_y = get_min_y(points)
     max_x = get_max_x(points)
@@ -41,24 +43,26 @@ def rotate(points, cnt, angle_radians):
     return list(rotated)
 
 def get_max_x(points):
+    assert len(points) > 0
     return max([point[0] for point in points])
 
 def get_max_y(points):
+    assert len(points) > 0
     return max([point[1] for point in points])
 
 def get_min_x(points):
+    assert len(points) > 0
     return min([point[0] for point in points])
 
 def get_min_y(points):
+    assert len(points) > 0
     return min([point[1] for point in points])
 
 def calculate_line_segments_thru(x, boundaries):
     """
-        Renders the vertical line segment(s) that pass through boundaries
-        from that pass through x=*x*. This will usually return one line
-        segment, but could return 0 line segments if the line just passes
-        through a corner of the geometry, and could return multiple line
-        segments if the geometry is convex
+        Renders the vertical line segment(s) that pass through the boundaries
+        and the line x=*x*. If the line intersects the boundaries only at a
+        single point, a line segment with length 0 is returned.
     """
     def sort_by_y(point):
         return point[1]
@@ -75,8 +79,6 @@ def calculate_line_segments_thru(x, boundaries):
     
     line = calculate_path_line_to_split(x)
     intersections = calculate_intersections(line, boundaries)
-
-    assert intersections # There must be at least one intersection
 
     if len(intersections) == 1:
         # If there is only one intersection, then return a line segment
@@ -122,13 +124,14 @@ def to_line_segments(points):
     if len(points) < 2:
         return []
     else:
-        return zip(points, points[1:] + [points[-1]]) +\
-                [(points[-1], points[0])]
+        return zip(points, points[1:]) + [(points[-1], points[0])]
 
 def calculate_center(polygon):
     """
         Returns the point that is in the center of a polygon
     """
+
+    assert len(polygon) > 0
     sum_x = sum(point[0] for point in polygon)
     sum_y = sum(point[1] for point in polygon)
     return float(sum_x) / len(polygon), float(sum_y) / len(polygon)
@@ -138,6 +141,8 @@ def find_closest_line_segment(point, line_segments):
         Returns the line segment that contains the point that is nearest
         to *point*
     """
+
+    assert len(line_segments) > 0
     def distance_to_line_segment(line_segment):
         start_point, end_point = line_segment
         return min(dist(point, start_point), dist(point, end_point))
@@ -150,14 +155,16 @@ def pad_vertical(line_segment, padding):
         of the top point and *padding* subtracted from the y-value of the bottom
         points
     """
-    top, bottom = line_segment
-    if top[1] > bottom[1]:
-        top, bottom = bottom, top 
 
-    top = (top[0],  top[1] - padding)
-    bottom = (bottom[0], bottom[1] + padding)
+    if not is_vertical(line_segment):
+        raise AssertionError("pad_vertical should only be used on vertical line_segments")
 
-    return top, bottom
+    (start_x, start_y) , (stop_x, stop_y) = line_segment
+
+    if start_y > stop_y:
+        return (start_x, start_y + padding), (stop_x, stop_y - padding)
+    else:
+        return (start_x, start_y - padding), (stop_x, stop_y + padding)
 
 def is_vertical(line_segment):
     (start_x, start_y), (stop_x, stop_y) = line_segment
@@ -170,12 +177,13 @@ def partition_line_segment_if_vertical(line_segment, distance):
         If the line segment is not vertical, it returns the original 
         line segment
     """
-    start, stop = line_segment
-    (start_x, start_y), (stop_x, stop_y) = line_segment
-    if is_vertical(line_segment):
+    assert distance > 0
+    if not is_vertical(line_segment):
         # Don't add intermediate waypoints in this case
-        return [start, stop]
+        return line_segment
     else:
+        start, stop = line_segment
+        (start_x, start_y), (stop_x, stop_y) = line_segment
         if start_y > stop_y:
             distance = -distance
         result = [(start_x, y) for y in numpy.arange(start_y, stop_y,

@@ -3,8 +3,7 @@ from image_generator import ImageGenerator
 
 class TestPathfinder:
 
-    @staticmethod
-    def integration_test():
+    def integration_test(self):
         def test_square():
             plane_location = 1, 1
             boundaries = [(0, 0), (1000, 0), (1000, 1000), (0, 1000)]
@@ -58,12 +57,8 @@ class TestPathfinder:
             finder = Pathfinder(plane_location, boundaries, options)
             ImageGenerator(finder).create_image("gps.jpg")
 
-
         test_square()
         test_square_scaled()
         test_rot_square()
         test_concave()
         test_gps_coords()
-
-    def __init__(self):
-        print "Use `nosetests` in the shell to run this file"
