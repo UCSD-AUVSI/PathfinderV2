@@ -2,6 +2,7 @@ import geometry_operations
 from geometry_operations import to_radians, dist
 from waypoint_generator import WaypointGenerator
 from image_generator import ImageGenerator
+from kml_generator import KMLGenerator
 from functools import partial
 
 class Pathfinder:
@@ -12,6 +13,7 @@ class Pathfinder:
     PATH_WIDTH = 61
     OVERSHOOT_DISTANCE = 61
     MAX_DISTANCE_BETWEEN_WAYPOINTS = 50
+    DEFAULT_ALTITUDE = 400
 
     @staticmethod
     def __remove_sequential_duplicates(path):
@@ -98,13 +100,22 @@ class Pathfinder:
             return geometry_operations.rotate(path, boundaries_center, -wind_angle_radians)
 
         wind_angle_radians = to_radians(self.wind_angle_degrees)
-        boundaries_center = geometry_operations.calculate_center(self.boundaries)
-        rotated_boundaries = geometry_operations.rotate(self.boundaries, boundaries_center,
+        boundaries_center = geometry_operations.calculate_center(self.searcharea)
+        rotated_boundaries = geometry_operations.rotate(self.searcharea, boundaries_center,
                                                         wind_angle_radians)
         rotated_path = compute_path_rotated(rotated_boundaries, self.plane_location)
         return unrotate_path(rotated_path, boundaries_center, wind_angle_radians)
 
-    def __init__(self, plane_location, boundaries, options = dict()):
+    def get_altitude(self):
+	return self.wp_altitude
+
+    def get_searcharea(self):
+	return self.searcharea
+
+    def get_boundaries(self):
+	return self.boundaries
+
+    def __init__(self, plane_location, searcharea, boundaries, options = dict()):
         """
             Constructor for pathfinder object. 
 
@@ -137,8 +148,10 @@ class Pathfinder:
         options.get("max_distance_between_waypoints", 
                     Pathfinder.MAX_DISTANCE_BETWEEN_WAYPOINTS)
         self.wind_angle_degrees = options.get("wind_angle_degrees", 0)
-        self.boundaries = boundaries
+        self.searcharea = searcharea
+	self.boundaries = boundaries
         self.plane_location = plane_location
+	self.wp_altitude = options.get("wp_altitude", Pathfinder.DEFAULT_ALTITUDE)
         self.__path = None # Will be evaluated lazily
 
 def main():
@@ -146,25 +159,50 @@ def main():
     def meters_to_gps(meters):
         return meters / 111122.0
 
-    plane_location = 32.961043, -117.190664
-    boundaries = [(32.961043, -117.190664),
-                  (32.961132, -117.188443),
-                  (32.962393, -117.187006),
-                  (32.962321, -117.189924)]
+    def meters_to_feet(meters):
+	return meters * 0.3048
+
+    plane_location = 38.144889, -76.428386
+    flightboundaries = [(38.1510961533167,-76.43468776546464),
+		    (38.14537514977575, -76.4315679330514),
+		    (38.14340623193864, -76.43535575559602),
+		    (38.14041281165054, -76.43258795871857),
+		    (38.14157742394668, -76.42954167566813),
+		    (38.13979202896091, -76.4261887452482),
+		    (38.14159881738863, -76.42357363169077),
+		    (38.14411183880505, -76.4257379185068),
+		    (38.14586589933084, -76.42207661775097),
+		    (38.14736951740486, -76.42292706869287),
+		    (38.14604797919601, -76.4270922043564),
+		    (38.15131594958007, -76.42913638660615),
+		    (38.1510961533167, -76.43468776546464)]
+
+    searcharea = [(38.14325436740429, -76.43484836856422),
+			(38.14096581012227, -76.43249836715462),
+			(38.14199681234503, -76.42929890209555),
+			(38.14013480600455, -76.42625898927464),
+			(38.14178878943476, -76.42407623343071),
+			(38.14382186643293, -76.42586928641738),
+			(38.14452836874776, -76.4310129102313),
+			(38.14325436740429, -76.43484836856422)]
 
     options = {
         "wind_angle_degrees": 30,
         "path_width": meters_to_gps(30),
-        "overshoot_distance": meters_to_gps(30),
-        "dist_between": meters_to_gps(30)
+        "overshoot_distance": meters_to_gps(-30),
+        "dist_between": meters_to_gps(30),
+	"wp_altitude": 300.0
     }
+    # FIXME is wp_altitude in m or ft?
 
-    finder = Pathfinder(plane_location, boundaries, options)
+    finder = Pathfinder(plane_location, searcharea, flightboundaries, options)
     waypoint_generator = WaypointGenerator(finder)
     image_generator = ImageGenerator(finder)
+    kml_generator = KMLGenerator(finder)
                 
-    waypoint_generator.export_qgc_waypoints()
+    #waypoint_generator.export_qgc_waypoints()
     image_generator.create_image("output.jpg")
+    kml_generator.export_kml()
 
 if __name__ == '__main__':
     main()
